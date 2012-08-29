@@ -96,6 +96,7 @@ class World(DirectObject):
         self.floater = NodePath(PandaNode("floater"))
         self.floater.reparentTo(render)
 
+
         # ----------------------------------------------------------------------
         # new: create DynObject to "host" a Ralph model for our player avatar
         
@@ -106,7 +107,7 @@ class World(DirectObject):
         self.accept("a-up", self.setKey, ["cam-left",0])
         self.accept("s-up", self.setKey, ["cam-right",0])
 
-        taskMgr.add(self.moveCamera,"CameraMoveTask")
+        # taskMgr.add(self.moveCamera,"CameraMoveTask")
         taskMgr.add(self.moveObjects,"ObjectsMoveTask")
 
         # Game state variables
@@ -183,12 +184,22 @@ class World(DirectObject):
         actor = DynObject(render, id, position, gameclient)
         actor.motion_controller = NetworkObjectController(actor)
         self.addObject(actor)
+
+        text = TextNode('node name_'+str(id))
+        text.setText('Ralph_'+str(id))
+        textNodePath = actor.actor.attachNewNode(text)
+        textNodePath.setScale(1.0)        
+        textNodePath.setBillboardPointEye()
+        textNodePath.setZ(8.0)
+        # textNodePath.setX(2.0)
+
         return actor
 
     # called by gameclient on behalf of the server. The actor passed in here
     # has been created by calling createActor() first 
     def createPlayer(self, actor):
         self.player = actor
+        self.player.is_player = True
         self.player.motion_controller = PlayerController(actor)     # override the actor's default
         
         self.accept("arrow_left", self.player.motion_controller.setKey, ["left",1])
@@ -201,6 +212,7 @@ class World(DirectObject):
         # Set up the camera
         base.disableMouse()
         base.camera.setPos(self.player.getX(),self.player.getY()+10,2)
+
         
     #Records the state of the arrow keys
     # this is used for camera control
@@ -209,7 +221,8 @@ class World(DirectObject):
 
     # Accepts arrow keys to move either the player or the menu cursor,
     # Also deals with grid checking and collision detection
-    def moveCamera(self, task):
+    # this is called from the player avatar's move() 
+    def moveCamera(self):
 
         if self.player == None: return task.cont
         
@@ -257,7 +270,7 @@ class World(DirectObject):
         self.floater.setZ(self.player.getZ() + 2.0)
         base.camera.lookAt(self.floater)
 
-        return task.cont
+        return
 
 
 
@@ -265,10 +278,10 @@ class World(DirectObject):
 # main
 # ------------------------------------------------------------------------------
 
-print 'starting client v0.0.1'
+print 'starting client v0.0.2'
 w = World()
 client = GameClient(w)
-client.connect('localhost', 8124)
+client.connect('ec2-54-247-93-97.eu-west-1.compute.amazonaws.com', 8124)
 
 while(True):
     taskMgr.step();

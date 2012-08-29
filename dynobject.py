@@ -80,7 +80,8 @@ class NetworkObjectController():
 
     # what we are doing here is absurdly primitve for now: simply read the next network state from the queue
     # (if any exists) and copy over state, position and heading. No smoothing or prediction is perfomed at all
-    # while this works it will produce increasingly ugly ghosting of objects as soon as lag increases
+    # while this works it will produce increasingly ugly ghosting of objects as soon as lag increases and
+    # particularly when theres noriceable changes in lag in between calls
     def processMove(self):
         # print 'NetworkObjectController.doMove()'
         actor = self.obj.actor
@@ -107,7 +108,8 @@ class DynObject():
         self.client = gameclient
         self.id = objid
         self.motion_controller = None
-
+        self.is_player = False
+        
         # state  management
         self.isAnimating = False
         self.state = state.IDLE
@@ -192,6 +194,9 @@ class DynObject():
         else:
             self.actor.setPos(startpos)
 
+        # if this is the player avatar: make the camera follow us
+        if self.is_player is True:
+            self.client.world.moveCamera()
 
     # convenience getter/setters
     def setPos(self, pos):

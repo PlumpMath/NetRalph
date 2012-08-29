@@ -4,7 +4,7 @@
 
 var net = require('net');
 
-var SERVER_VERSION = '0.0.1';
+var SERVER_VERSION = '0.0.2';
 
 // define opcodes and message sizes
 var rpc_ops = {
@@ -72,13 +72,13 @@ var client = {
 	// 2: create actor
 	// 3: send state update
 	sendState : function(s, op) {
-		console.log('id:', this.id, ' sending op:',op, ' to socket id:', s.id);
+		// console.log('id:', this.id, ' sending op:',op, ' to socket id:', s.id);
 		
 		// buffer based binary message
 		msg = stateMessage(op, this.id, this.state, this.xpos, this.ypos, this.zpos, this.hdg);
-		console.log('binary buffer msg: ', msg);
+		// console.log('binary buffer msg: ', msg);
 	  	s.write(msg, function (){ 
-	  		console.log('connection id:',s.id,'flushed');
+	  		// console.log('connection id:',s.id,'flushed');
 	  	});		
 	},
 
@@ -95,7 +95,7 @@ var client = {
 	
 	// Send position updates to all clients other than the owner of this client object
 	broadcastState : function(clist) {
-		console.log('sending my (id:', this.id,') state to ', Object.keys(clist).length-1, ' entities.'); 
+		// console.log('sending my (id:', this.id,') state to ', Object.keys(clist).length-1, ' entities.'); 
         msg = stateMessage(3, this.id, this.state, this.xpos, this.ypos, this.zpos, this.hdg);
         this.broadcastMessage(clist, msg);
 	},
@@ -127,7 +127,7 @@ var client = {
 		for(key in clist) {
 			c = clist[key];
 			if (c.id != this.id) {
-				console.log('making client id:', c.id, 'send createActor to id:', this.id);
+				// console.log('making client id:', c.id, 'send createActor to id:', this.id);
 				c.sendState(this.socket, 2);
 			}
 		}				
@@ -143,7 +143,8 @@ var client = {
 			case 3:
 				objid = this.inbuf.readUInt16LE(2);
 				this.state= this.inbuf.readUInt8(4);
-				console.log('processing rpc op: client object position update for object id=', objid, ' state=', this.state);
+				// console.log('processing rpc op: client object position update for object id=', objid, ' state=', this.state);
+            
                 // note that in production code we wont be able to simply accept an
                 // unchecked position from a client anymore !
                 this.xpos = this.inbuf.readFloatLE(5);
@@ -158,16 +159,23 @@ var client = {
 	// stuff all incoming data into the client's network data inbuf
     // check if any complete messages have arrived and if so, determine and execute the respective rpc function
 	processClientData : function(data) {
-		console.log('client data received, len: ', data.length, ' ', data.toString());
+		// console.log('client data received, len: ', data.length, ' ', data.toString());
 		data.copy(this.inbuf, this.writep, 0, data.length);
 		this.writep+=data.length;
 		bytes_left = this.writep - this.readp;
 		while (bytes_left >= 2) {
 			opcode = this.inbuf.readUInt16LE(this.readp);
-			console.log('writep:', this.writep, ' readp:',this.readp, ' incoming opcode:', opcode);
+			// console.log('writep:', this.writep, ' readp:',this.readp, ' incoming opcode:', opcode);
+            if (typeof rpc_ops[opcode] == "undefined"){
+                // got an undefined opcode on this connection, could be a network error
+                // more likely its someone messing around though! Kick them out!
+                console.log('ERROR: received undefined opcode ', opcode, ' on connection ', this.id);
+                this.socket.destroy();
+                return;
+            }
 			oplen = rpc_ops[opcode]
 			if (bytes_left >= oplen) {
-				console.log('complete op in buffer, oplen:', oplen);
+				// console.log('complete op in buffer, oplen:', oplen);
 				this.inbuf.copy(this.opbuf, 0, this.readp, this.readp+oplen);
 				this.readp = this.readp + oplen;
 				bytes_left = this.writep - this.readp;				
@@ -189,7 +197,7 @@ var onConnect = function(socket) {
 	socket.setNoDelay(true);
 	
 	// start up a new client upon connection
-  	console.log('client connected, id:', server.connection_id);
+  	console.log('client connected, id:', server.connection_id, ' remote ip:', socket.remoteAddress);
   	console.log('starting up remote player ')
   	
   	id = server.connection_id++;  	
