@@ -120,7 +120,7 @@ class GameClient(dispatcher):
     def op_ping(self, opbuf):
         (opcode, timestamp, lag) = struct.unpack("<HIH", opbuf)
         print 'processing ping message, incoming timestamp:', timestamp, ' server lag:', lag
-        self.world.inst8.setText('Current connection lag: ' + str(lag) + 'ms')
+        self.world.inst8.setText('Current connection lag: ' + str(lag) + ' ms')
         # simply send it back
         msg = struct.pack("<HIH", 5, timestamp, lag)
         self.send(msg)

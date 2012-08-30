@@ -181,16 +181,16 @@ var Client = {
 			
             case 3:
                 // client state update
-				objid = this.inbuf.readUInt16LE(2);
-				this.state= this.inbuf.readUInt8(4);
+				objid = opdata.readUInt16LE(2);
+				this.state= opdata.readUInt8(4);
 				// console.log('processing rpc op: client object position update for object id=', objid, ' state=', this.state);
             
                 // note that in production code we wont be able to simply accept an
                 // unchecked position from a client anymore !
-                this.xpos = this.inbuf.readFloatLE(5);
-                this.ypos = this.inbuf.readFloatLE(9);
-                this.zpos = this.inbuf.readFloatLE(13);
-                this.hdg = this.inbuf.readFloatLE(17);
+                this.xpos = opdata.readFloatLE(5);
+                this.ypos = opdata.readFloatLE(9);
+                this.zpos = opdata.readFloatLE(13);
+                this.hdg = opdata.readFloatLE(17);
                 this.broadcastState(server.clist);
 				break;
             
@@ -198,7 +198,7 @@ var Client = {
                 // keepalive ping from client: this contains our original 
                 // timestamp which we now use to measure current network
                 // roundtrip time (aka "lag")
-                sent_time = this.inbuf.readUInt32LE(2);
+                sent_time = opdata.readUInt32LE(2);
                 current_time = new Date().getTime() - STARTUP_TIME;
                 roundtrip_time = current_time - sent_time;
                 this.current_lag = roundtrip_time;
