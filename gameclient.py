@@ -23,7 +23,8 @@ class GameClient(dispatcher):
                             1 : [self.op_createPlayer, 21],
                             2 : [self.op_createActor, 21],
                             3 : [self.op_updateObjectPosition, 21],
-                            4 : [self.op_deleteObject, 4]
+                            4 : [self.op_deleteObject, 4],
+                            5 : [self.op_ping, 8]
                             }
 
     # -------------------------------------------------------------------------
@@ -70,7 +71,7 @@ class GameClient(dispatcher):
                 func(opbuf)                         # execute
 
                 rindex = rindex+oplen               # housekeeping: advance index
-                bytes_left = bytes_left - oplen  # account for bytes processed
+                bytes_left = bytes_left - oplen     # account for bytes processed
             else:
                 print 'Incomplete op fragment in network buffer!'
                 return
@@ -78,11 +79,11 @@ class GameClient(dispatcher):
         # all data has been digested, reset buffer
         self.msg_buffer = ''
         
-    # we send one of these to the server whenever our state changes do to user input
+    # we send one of these to the server whenever our state changes due to user input
     # the server will then relay these messages to all other clients
     def sendClientPositionUpdate(self, objid, state, pos, hdg):
         # opcode 3: object position update
-        # this contains: opcode, objid, state and 6 floats with the object's position and heading
+        # this contains: opcode, objid, state and 4 floats with the object's position and heading
         # movememnt state has bits for 'moving fwd', 'moving backwards', 'rotating right' , 'rotating left'
         msg = struct.pack("<HHBffff", 3, objid, state, pos[0], pos[1], pos[2], hdg)
         self.send(msg)
@@ -115,4 +116,14 @@ class GameClient(dispatcher):
         (opcode, objid) = struct.unpack("<HH", opbuf)
         print 'processing deleteObject message, objid=', objid
         self.world.deleteObject(objid)
+
+    def op_ping(self, opbuf):
+        (opcode, timestamp, lag) = struct.unpack("<HIH", opbuf)
+        print 'processing ping message, incoming timestamp:', timestamp, ' server lag:', lag
+        self.world.inst8.setText('Current connection lag: ' + str(lag) + 'ms')
+        # simply send it back
+        msg = struct.pack("<HIH", 5, timestamp, lag)
+        self.send(msg)
+        
+
         

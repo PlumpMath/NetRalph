@@ -1,17 +1,19 @@
-
-// test game server for "net ralph" done with node.js
+// server.js
+// test server for "net ralph" on node.js
 // (c) gsk 08/2012
 
 var net = require('net');
 
-var SERVER_VERSION = '0.0.2';
+var SERVER_VERSION = '0.0.3';
+var STARTUP_TIME = new Date().getTime();
 
 // define opcodes and message sizes
 var rpc_ops = {
     1  : 21,    // create player
     2  : 21,    // create actor
 	3  : 21,	// object state update
-    4  : 4      // delete object
+    4  : 4,     // delete object
+    5  : 8      // ping message with timestamp
 };
 
 // create an object state/position update type message packet
@@ -45,11 +47,19 @@ var deleteObjectMessage = function(objid) {
     return buf;
 };
 
+var pingMessage = function(timestamp, lag) {
+	// message size (bytes): opcode (2) + timestamp (4) + lag (2)  = 8
+	buf = new Buffer(8);
+	buf.writeUInt16LE(5, 0);	        // opcode 5
+	buf.writeUInt32LE(timestamp, 2);	// timestamp
+	buf.writeUInt16LE(lag, 6);	        // current lag
+    return buf;
+};
 
 // ----------------------------------------------------------------------------
 // a client object gets created by the connection listener for all connections
 
-var client = {
+var Client = {
     
     // these are the attributes describing the player's avatar object
 	id : 0,             // this is the client ID which is the same as the objects avatar ID 
@@ -66,6 +76,10 @@ var client = {
 	readp : 0,
 	writep: 0,
 		
+    // misc. variables related to the management of this client connection
+    timer_id : 0,
+    current_lag : 0,
+    
 	// this actually implements three different operations that all need to transmit basically 
 	// the same information with differing opcodes:
 	// 1: create player
@@ -114,7 +128,7 @@ var client = {
 			this.sendState(clist[key].socket, op);
 		}
 	},
-	
+   
 	// start up a new client: 
 	// make the new player avatar spawn on all clients (including the new one)
 	// and make all prior existing client avatars spawn on the new client
@@ -130,9 +144,33 @@ var client = {
 				// console.log('making client id:', c.id, 'send createActor to id:', this.id);
 				c.sendState(this.socket, 2);
 			}
-		}				
+		}		
+
+        // install the regular keepalive ping: right now we send every 2 seconds
+        // This is also used to measure current roundtrip time for this client
+        // NOTE: that the callback function will be excuted in a separate context!
+        // For this reason, "this" will not point to this client object!
+        this.timer_id = setInterval( function(client) {
+            timestamp = new Date().getTime() - STARTUP_TIME;
+            lag = client.current_lag;
+            // console.log('ping:', timestamp, ' lag:', lag);
+            msg = pingMessage(timestamp, lag);
+            client.socket.write(msg);
+        }, 2000, this);
+        
 	},
 	
+    cleanup : function() {
+        console.log('performing cleanup for connection ', this.id);
+        
+        // remove our regular keepalive timer
+        clearInterval(this.timer_id);
+        // inform everyone else of our exit
+        this.broadcastMessage(server.clist, deleteObjectMessage(this.id));
+        // delete ourselves from the servers list of connections
+       	delete server.clist[this.id.toString()];
+    },
+    
 	// ------------------------------------------------------------------------
 	// incoming network data processing
 	
@@ -140,7 +178,9 @@ var client = {
     // broadcast to the rest of the world
 	processRpcOp : function(opcode, opdata) {
 		switch(opcode) {
-			case 3:
+			
+            case 3:
+                // client state update
 				objid = this.inbuf.readUInt16LE(2);
 				this.state= this.inbuf.readUInt8(4);
 				// console.log('processing rpc op: client object position update for object id=', objid, ' state=', this.state);
@@ -153,6 +193,17 @@ var client = {
                 this.hdg = this.inbuf.readFloatLE(17);
                 this.broadcastState(server.clist);
 				break;
+            
+            case 5:
+                // keepalive ping from client: this contains our original 
+                // timestamp which we now use to measure current network
+                // roundtrip time (aka "lag")
+                sent_time = this.inbuf.readUInt32LE(2);
+                current_time = new Date().getTime() - STARTUP_TIME;
+                roundtrip_time = current_time - sent_time;
+                this.current_lag = roundtrip_time;
+                // console.log('received a return ping, roundtrip time:', roundtrip_time, 'ms');
+                break;
 		}
 	},
 	
@@ -202,7 +253,7 @@ var onConnect = function(socket) {
   	
   	id = server.connection_id++;  	
   	socket.id = id;  	
-  	c = Object.create(client);      // create the client object
+  	c = Object.create(Client);      // create the client object
   	c.id = socket.id;				// store the id (same as socket.connection_id)
 	c.socket = socket;				// store the socket
 	
@@ -215,18 +266,34 @@ var onConnect = function(socket) {
 	
 	c.startupClient(server.clist);	// startup the new client
 
-	// set callback for disconnect
+	// set callback for disconnect (initiated by the client)
   	socket.on('end', function() {
     	console.log('client disconnected, id:', this.id);
-        this.client.broadcastMessage(server.clist, deleteObjectMessage(this.client.id));
-    	delete server.clist[this.id.toString()];
+        // let the client object cleanup itself before we destroy it
+    	client = server.clist[this.id.toString()];
+        if (typeof(client) != 'undefined')
+            client.cleanup();
   	});
 
 	// set callback for network errors
   	socket.on('error', function() {
-    	console.log('network error on connection id=', this.id, '. Disconnecting');
-    	delete server.clist[this.id.toString()];
+    	console.log('network error on connection id:', this.id, '. Disconnecting');
+        // let the client object cleanup itself before we destroy it
+    	client = server.clist[this.id.toString()];
+        if (typeof(client) != 'undefined')
+            client.cleanup();
   	});
+
+	// set callback for socket close events
+    // Note that this will be emitted in addition to the 'end' event 
+    // for client disconnects
+  	socket.on('close', function() {
+    	console.log('socket closed on connection id:', this.id);
+        // let the client object cleanup itself before we destroy it
+    	client = server.clist[this.id.toString()];
+        if (typeof(client) != 'undefined')
+            client.cleanup();
+    });
   
 	// set callback for incoming data
   	socket.on('data', function(data) {

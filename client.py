@@ -70,6 +70,7 @@ class World(DirectObject):
         self.inst4 = addInstructions(0.80, "[Up Arrow]: Run Ralph Forward")
         self.inst6 = addInstructions(0.70, "[A]: Rotate Camera Left")
         self.inst7 = addInstructions(0.65, "[S]: Rotate Camera Right")
+        self.inst8 = addInstructions(0.55, "Current connection lag:")
         
         # Set up the environment
         #
@@ -200,7 +201,7 @@ class World(DirectObject):
     def createPlayer(self, actor):
         self.player = actor
         self.player.is_player = True
-        self.player.motion_controller = PlayerController(actor)     # override the actor's default
+        self.player.motion_controller = PlayerController(actor)    
         
         self.accept("arrow_left", self.player.motion_controller.setKey, ["left",1])
         self.accept("arrow_right", self.player.motion_controller.setKey, ["right",1])
@@ -278,10 +279,12 @@ class World(DirectObject):
 # main
 # ------------------------------------------------------------------------------
 
-print 'starting client v0.0.2'
+print 'starting client v0.0.3'
 w = World()
 client = GameClient(w)
-client.connect('ec2-54-247-93-97.eu-west-1.compute.amazonaws.com', 8124)
+
+# client.connect('ec2-54-247-93-97.eu-west-1.compute.amazonaws.com', 8124)
+client.connect('localhost', 8124)
 
 while(True):
     taskMgr.step();

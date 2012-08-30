@@ -80,7 +80,7 @@ class NetworkObjectController():
 
     # what we are doing here is absurdly primitve for now: simply read the next network state from the queue
     # (if any exists) and copy over state, position and heading. No smoothing or prediction is perfomed at all
-    # while this works it will produce increasingly ugly ghosting of objects as soon as lag increases and
+    # while this works, it will produce increasingly ugly ghosting of objects as soon as lag increases and
     # particularly when theres noriceable changes in lag in between calls
     def processMove(self):
         # print 'NetworkObjectController.doMove()'
