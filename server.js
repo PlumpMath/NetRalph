@@ -153,6 +153,8 @@ var Client = {
         this.timer_id = setInterval( function(client) {
             timestamp = new Date().getTime() - STARTUP_TIME;
             lag = client.current_lag;
+            if (lag > 65535)
+                lag = 65535;    // clamp lag to 16 bits
             // console.log('ping:', timestamp, ' lag:', lag);
             msg = pingMessage(timestamp, lag);
             client.socket.write(msg);
