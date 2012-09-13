@@ -279,7 +279,7 @@ class World(DirectObject):
 # main
 # ------------------------------------------------------------------------------
 
-print 'starting client v0.0.3'
+print 'starting client v0.0.4'
 w = World()
 client = GameClient(w)
 

@@ -90,6 +90,14 @@ class GameClient(dispatcher):
 
     # -------------------------------------------------------------------------
     # handlers for messages coming from the server
+    # python struct module format characters for binary data
+    # < : low endian
+    # B : 8 bit unsigned
+    # H : 16 bit unsigned short
+    # h : 16 bit signed short
+    # I : 32 bit signed
+    # f : 32 bit float
+    
     def op_createPlayer(self, opbuf):
         print "op: create player, len(opbuf):", len(opbuf)
         (opcode, objid, state, xpos, ypos, zpos, hdg) = struct.unpack("<HHBffff", opbuf)
@@ -118,7 +126,7 @@ class GameClient(dispatcher):
         self.world.deleteObject(objid)
 
     def op_ping(self, opbuf):
-        (opcode, timestamp, lag) = struct.unpack("<HIH", opbuf)
+        (opcode, timestamp, lag) = struct.unpack("<HIh", opbuf)
         print 'processing ping message, incoming timestamp:', timestamp, ' server lag:', lag
         self.world.inst8.setText('Current connection lag: ' + str(lag) + ' ms')
         # simply send it back

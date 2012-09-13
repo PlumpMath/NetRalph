@@ -4,7 +4,7 @@
 
 var net = require('net');
 
-var SERVER_VERSION = '0.0.3';
+var SERVER_VERSION = '0.0.4';
 var STARTUP_TIME = new Date().getTime();
 
 // define opcodes and message sizes
@@ -52,7 +52,7 @@ var pingMessage = function(timestamp, lag) {
 	buf = new Buffer(8);
 	buf.writeUInt16LE(5, 0);	        // opcode 5
 	buf.writeUInt32LE(timestamp, 2);	// timestamp
-	buf.writeUInt16LE(lag, 6);	        // current lag
+	buf.writeInt16LE(lag, 6);	        // current lag
     return buf;
 };
 
