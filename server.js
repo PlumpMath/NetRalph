@@ -2,9 +2,11 @@
 // test server for "net ralph" on node.js
 // (c) gsk 08/2012
 
+// v0.0.4 is the first version in the Evo1 branch
+
 var net = require('net');
 
-var SERVER_VERSION = '0.0.3';
+var SERVER_VERSION = '0.0.4';
 var STARTUP_TIME = new Date().getTime();
 
 // define opcodes and message sizes
@@ -242,7 +244,7 @@ var Client = {
 
 
 // ----------------------------------------------------------------------------
-// client connection listener
+// incoming client connection listener
 var onConnect = function(socket) {
 
 	socket.setNoDelay(true);
@@ -266,40 +268,44 @@ var onConnect = function(socket) {
 	
 	c.startupClient(server.clist);	// startup the new client
 
-	// set callback for disconnect (initiated by the client)
+    // ------------------------------------------------------------------------
+    // install socket callbacks
+
+	// callback for incoming data
+  	socket.on('data', function(data) {
+  		this.client.processClientData(data);
+  	});
+
+	// callback for disconnect (initiated by the client)
   	socket.on('end', function() {
     	console.log('client disconnected, id:', this.id);
-        // let the client object cleanup itself before we destroy it
+        // let the client object clean itself up before we destroy it
     	client = server.clist[this.id.toString()];
         if (typeof(client) != 'undefined')
             client.cleanup();
   	});
 
-	// set callback for network errors
+	// callback for network errors
   	socket.on('error', function() {
     	console.log('network error on connection id:', this.id, '. Disconnecting');
-        // let the client object cleanup itself before we destroy it
-    	client = server.clist[this.id.toString()];
+        // let the client object clean itself up before we destroy it
+    	client = server.clist[this.id
+        .toString()];
         if (typeof(client) != 'undefined')
             client.cleanup();
   	});
 
-	// set callback for socket close events
+	// callback for socket close events
     // Note that this will be emitted in addition to the 'end' event 
     // for client disconnects
   	socket.on('close', function() {
     	console.log('socket closed on connection id:', this.id);
-        // let the client object cleanup itself before we destroy it
+        // let the client object clean itself up before we destroy it
     	client = server.clist[this.id.toString()];
         if (typeof(client) != 'undefined')
             client.cleanup();
     });
   
-	// set callback for incoming data
-  	socket.on('data', function(data) {
-  		this.client.processClientData(data);
-  	});
-
 };
 
 
@@ -308,6 +314,7 @@ var onConnect = function(socket) {
 
 var server = net.createServer();
 server.name = 'Node Game Server';
+server.version = SERVER_VERSION;
 server.connection_id = 0;
 server.clist = {};
 server.on('connection', onConnect);

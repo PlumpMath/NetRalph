@@ -14,7 +14,7 @@
 # client.py 
 # contains entry point for our client, main startup and 
 # some "zone" management code, objects list etc.
-# gsk July/August 2012
+# created: gsk July/August 2012
 
 
 import direct.directbase.DirectStart
@@ -279,7 +279,7 @@ class World(DirectObject):
 # main
 # ------------------------------------------------------------------------------
 
-print 'starting client v0.0.3'
+print 'starting client v0.0.4'
 w = World()
 client = GameClient(w)
 
