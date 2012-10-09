@@ -54,7 +54,7 @@ var pingMessage = function(timestamp, lag) {
 	buf = new Buffer(8);
 	buf.writeUInt16LE(5, 0);	        // opcode 5
 	buf.writeUInt32LE(timestamp, 2);	// timestamp
-	buf.writeUInt16LE(lag, 6);	        // current lag
+	buf.writeInt16LE(lag, 6);	        // current lag
     return buf;
 };
 
@@ -155,6 +155,8 @@ var Client = {
         this.timer_id = setInterval( function(client) {
             timestamp = new Date().getTime() - STARTUP_TIME;
             lag = client.current_lag;
+            if (lag > 65535)
+                lag = 65535;    // clamp lag to 16 bits
             // console.log('ping:', timestamp, ' lag:', lag);
             msg = pingMessage(timestamp, lag);
             client.socket.write(msg);
