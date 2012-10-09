@@ -11,7 +11,8 @@ import direct.directbase.DirectStart
 from panda3d.core import TextNode
 from panda3d.core import Filename,AmbientLight,DirectionalLight
 from panda3d.core import Vec3, Vec4, Point3
-from panda3d.core import GeomVertexData, GeomVertexFormat, GeomVertexWriter, Geom
+
+from panda3d.core import Geom, GeomVertexData, GeomVertexFormat, GeomVertexWriter, GeomTriangles, GeomNode
 
 from direct.gui.OnscreenText import OnscreenText
 from direct.actor.Actor import Actor
@@ -41,10 +42,23 @@ class World(DirectObject):
         print 'world initializing'
 
         # navmesh cell display data structures
-        self.cell_vdata = GeomVertexData('DisplayCell', GeomVertexFormat.getV3c4(), Geom.UHStatic)
+        
+        # Note that this currently works with just a single vertex and color buffer and
+        # and also just one GeomTriangles primitive that
+        # we add more and more triangles to as we walk the mesh. No idea whether this is the best 
+        # way to do this in Panda3d but for now it seems to work
+        self.cell_vdata = GeomVertexData('DisplayCell', GeomVertexFormat.getV3c4(), Geom.UHDynamic)
         self.cell_vertex = GeomVertexWriter(self.cell_vdata, 'vertex')
         self.cell_color = GeomVertexWriter(self.cell_vdata, 'color')
+        self.cell_primitives = GeomTriangles(Geom.UHDynamic)
+        self.cell_geom = Geom(self.cell_vdata)
+        self.cell_geom.addPrimitive(self.cell_primitives)
         
+        node = GeomNode('navmesh')
+        node.addGeom(self.cell_geom)
+        nodePath = render.attachNewNode(node)
+        nodePath.setRenderModeWireframe()
+
         # application window setup
         base.win.setClearColor(Vec4(0,0,0,1))
         props = WindowProperties( )
@@ -111,12 +125,31 @@ class World(DirectObject):
         self.keyMap[key] = value
 
     def addDisplayCell(self, cell):
-        pass
+        # we need to add a quad consisting of two triangles for the cell
+        x = int(cell.world_pos.getX())
+        y = int(cell.world_pos.getY())
+        
+        # vertex data
+        quadsiz = 10.0
+        height = 50.0
+        self.cell_vertex.addData3f(x, y, height)
+        self.cell_color.addData4f(1, 0, 0, 1)
+        self.cell_vertex.addData3f(x+quadsiz, y, height)
+        self.cell_color.addData4f(1, 0, 0, 1)
+        self.cell_vertex.addData3f(x+quadsiz, y+quadsiz, height)
+        self.cell_color.addData4f(1, 0, 0, 1)
+        self.cell_vertex.addData3f(x, y+quadsiz, height)
+        self.cell_color.addData4f(1, 0, 0, 1)
+        
+        # triangle primitives
+        self.cell_primitives.addVertices(0, 1, 2)
+        self.cell_primitives.addVertices(0, 2, 3)
         
         
 class Cell():
-    def __init__(self, i = -1):
-        self.grid_index = i
+    def __init__(self, pos, i):
+        self.world_pos = pos    # needed for display purposes
+        self.grid_index = i     # index % grid_width = grid_x; index / grid_width = grid_y
         self.north = -1
         self.east = -1
         self.south = -1
@@ -142,7 +175,7 @@ class Navgen():
         # init task list with the start cell determined from the world start_pos
         i = self.worldPosToGridIndex(w.start_pos)
         print 'start cell: ', i
-        c = Cell(i)
+        c = Cell(w.start_pos, i)
         self.addCell(c)
         
     # expects a Panda Point3d or Vec3d as input
