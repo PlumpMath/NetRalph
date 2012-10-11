@@ -53,6 +53,7 @@ class World(DirectObject):
         self.cell_primitives = GeomTriangles(Geom.UHDynamic)
         self.cell_geom = Geom(self.cell_vdata)
         self.cell_geom.addPrimitive(self.cell_primitives)
+        self.cell_vertex_index = 0
         
         node = GeomNode('navmesh')
         node.addGeom(self.cell_geom)
@@ -130,8 +131,9 @@ class World(DirectObject):
         y = int(cell.world_pos.getY())
         
         # vertex data
-        quadsiz = 10.0
-        height = 50.0
+        quadsiz = 0.4
+        height = 20.0
+        
         self.cell_vertex.addData3f(x, y, height)
         self.cell_color.addData4f(1, 0, 0, 1)
         self.cell_vertex.addData3f(x+quadsiz, y, height)
@@ -142,26 +144,57 @@ class World(DirectObject):
         self.cell_color.addData4f(1, 0, 0, 1)
         
         # triangle primitives
-        self.cell_primitives.addVertices(0, 1, 2)
-        self.cell_primitives.addVertices(0, 2, 3)
-        
+        idx = self.cell_vertex_index
+        self.cell_primitives.addVertices(idx+0, idx+1, idx+2)
+        self.cell_primitives.addVertices(idx+0, idx+2, idx+3)
+        self.cell_vertex_index += 4 
         
 class Cell():
     def __init__(self, pos, i):
         self.world_pos = pos    # needed for display purposes
         self.grid_index = i     # index % grid_width = grid_x; index / grid_width = grid_y
+
+        # print 'initializing new cell at index: '+str(i)
+        
+        # connectivity
         self.north = -1
         self.east = -1
         self.south = -1
-        self.north = -1
+        self.west = -1
     
-
+class Walker():
+    
+    def __init__(self, navgen):
+        self.navgen = navgen
+        
+    def walk(self, cell):
+        # print 'walking cell:', cell.grid_index
+        
+        add_tasklist = []           # return new cells to add to tasklist
+        x = cell.world_pos.getX()
+        y = cell.world_pos.getY()
+        
+        # step north
+        new_y = y - self.navgen.cell_size
+        if(new_y >= 0.0):
+            # TODO implement actual "can move here" testing here
+            pos = Point3(x, new_y, cell.world_pos.getZ())
+            idx = self.navgen.worldPosToGridIndex(pos)
+            new_cell = Cell(pos, idx)       # create a new cell
+            add_tasklist.append(new_cell)   # add new cell to tasklist
+            cell.north = idx                # mark connectivity in existing cell
+            
+        return add_tasklist
+        
+            
 class Navgen():
     
     def __init__(self, w):
+        self.build_recursions = 0
         self.world = w
         self.task_list = []
-        
+        self.nav_grid = []
+                
         # determine grid 
         self.cell_size = 0.1
         self.grid_width = int(w.xsize/self.cell_size)
@@ -178,22 +211,49 @@ class Navgen():
         c = Cell(w.start_pos, i)
         self.addCell(c)
         
+        # init the Walker
+        self.walker = Walker(self)
+        
+        
     # expects a Panda Point3d or Vec3d as input
     # returns a grid index
     def worldPosToGridIndex(self, world_pos):
-        grid_index = int(world_pos.getX()/self.cell_size) + int(self.world.start_pos.getY()/self.cell_size) * self.grid_width
+        grid_index = int(world_pos.getX()/self.cell_size) + int(world_pos.getY()/self.cell_size) * self.grid_width
         return grid_index
         
-    # add a "walkable" cell to the task list
+    # add cell to the task_list ...
     def addCell(self, cell):
         self.task_list.append(cell)
         self.world.addDisplayCell(cell)
-        
+    
+    # and remove it again    
+    def removeCell(self, cell):
+        self.task_list.remove(cell)
+                
     # build the navmesh
     def build(self):
-        while(len(self.task_list) > 0):
+        self.build_recursions += 1
+        rm_list = []
+        for cell in self.task_list:
+            add_list = self.walker.walk(cell)    # may add up to 4 new entries to navgrid
+            rm_list.append(cell)                 # mark processed cell for removal from tasklist
+                
+        # remove cells processed this time around
+        for cell in rm_list:
+            self.removeCell(cell)
+                
+        # add new cells
+        for cell in add_list:
+            print 'adding new cell to tasklist; index=',cell.grid_index
+            self.addCell(cell)
+       
+        # step Panda3d's task manager every once in a while so that the display updates etc.
+        if (self.build_recursions % 10) == 0:
             taskMgr.step();
 
+        if(len(self.task_list) > 0):
+            self.build()
+            
 
 # ------------------------------------------------------------------------------
 # main
@@ -204,6 +264,9 @@ w = World()
 n = Navgen(w)
 n.build()
 
+while True:
+    taskMgr.step();
+    
     
     
 
