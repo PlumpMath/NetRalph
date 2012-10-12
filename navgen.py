@@ -85,9 +85,9 @@ class World(DirectObject):
         self.environ.reparentTo(render)
         self.environ.setPos(0,0,0)
 
-        world_bounds = self.environ.getTightBounds()
-        min = world_bounds[0]
-        max = world_bounds[1]
+        self.world_bounds = self.environ.getTightBounds()
+        min = self.world_bounds[0]
+        max = self.world_bounds[1]
         self.xsize = max[0] - min[0]
         self.ysize = max[1] - min[1]
         self.campos = Point3(min[0] + self.xsize/2, min[1] + self.ysize/2, 350.0)
@@ -129,10 +129,11 @@ class World(DirectObject):
         # we need to add a quad consisting of two triangles for the cell
         x = int(cell.world_pos.getX())
         y = int(cell.world_pos.getY())
+        z = cell.world_pos.getZ()
         
         # vertex data
-        quadsiz = 0.4
-        height = 20.0
+        quadsiz = 0.1
+        height = z + 5.0
         
         self.cell_vertex.addData3f(x, y, height)
         self.cell_color.addData4f(1, 0, 0, 1)
@@ -175,9 +176,12 @@ class Walker():
         y = cell.world_pos.getY()
         
         # step north
-        new_y = y - self.navgen.cell_size
-        if(new_y >= 0.0):
+        new_y = y + self.navgen.cell_size
+        max_y = self.navgen.world.world_bounds[1][1]
+        if(new_y <= max_y):
             # TODO implement actual "can move here" testing here
+            # TODO determine the real Z by means of colission detection instead
+            # of just copying the old cell's Z
             pos = Point3(x, new_y, cell.world_pos.getZ())
             idx = self.navgen.worldPosToGridIndex(pos)
             new_cell = Cell(pos, idx)       # create a new cell
