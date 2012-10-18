@@ -19,7 +19,7 @@ from direct.actor.Actor import Actor
 from direct.showbase.DirectObject import DirectObject
 from pandac.PandaModules import WindowProperties
 
-import sys
+import sys, copy
 
 VERSION = '0.0.1'
 
@@ -88,6 +88,12 @@ class World(DirectObject):
         self.world_bounds = self.environ.getTightBounds()
         min = self.world_bounds[0]
         max = self.world_bounds[1]
+        
+        self.min_x = min[0]
+        self.max_x = max[0]
+        self.min_y = min[1]
+        self.max_y = max[1]
+        
         self.xsize = max[0] - min[0]
         self.ysize = max[1] - min[1]
         self.campos = Point3(min[0] + self.xsize/2, min[1] + self.ysize/2, 350.0)
@@ -132,8 +138,8 @@ class World(DirectObject):
         z = cell.world_pos.getZ()
         
         # vertex data
-        quadsiz = 0.1
-        height = z + 5.0
+        quadsiz = 0.8
+        height = z + 10.0
         
         self.cell_vertex.addData3f(x, y, height)
         self.cell_color.addData4f(1, 0, 0, 1)
@@ -154,7 +160,8 @@ class Cell():
     def __init__(self, pos, i):
         self.world_pos = pos    # needed for display purposes
         self.grid_index = i     # index % grid_width = grid_x; index / grid_width = grid_y
-
+        self.processed = False
+        
         # print 'initializing new cell at index: '+str(i)
         
         # connectivity
@@ -177,17 +184,30 @@ class Walker():
         
         # step north
         new_y = y + self.navgen.cell_size
-        max_y = self.navgen.world.world_bounds[1][1]
-        if(new_y <= max_y):
+        if(new_y <= self.navgen.world.max_y):
             # TODO implement actual "can move here" testing here
-            # TODO determine the real Z by means of colission detection instead
+            # TODO determine the real Z by means of collision detection instead
             # of just copying the old cell's Z
             pos = Point3(x, new_y, cell.world_pos.getZ())
             idx = self.navgen.worldPosToGridIndex(pos)
             new_cell = Cell(pos, idx)       # create a new cell
             add_tasklist.append(new_cell)   # add new cell to tasklist
             cell.north = idx                # mark connectivity in existing cell
+
+        # step east
+        new_x = x + self.navgen.cell_size
+        if(new_x <= self.navgen.world.max_x):
+            # TODO implement actual "can move here" testing here
+            # TODO determine the real Z by means of collision detection instead
+            # of just copying the old cell's Z
+            pos = Point3(new_x, y, cell.world_pos.getZ())
+            idx = self.navgen.worldPosToGridIndex(pos)
+            new_cell = Cell(pos, idx)       # create a new cell
+            add_tasklist.append(new_cell)   # add new cell to tasklist
+            cell.east = idx                 # mark connectivity in existing cell
             
+        # print 'addlist len:', len(add_tasklist)
+        cell.processed = True
         return add_tasklist
         
             
@@ -236,34 +256,29 @@ class Navgen():
                 
     # build the navmesh
     def build(self):
-        self.build_recursions += 1
-        rm_list = []
-        for cell in self.task_list:
-            add_list = self.walker.walk(cell)    # may add up to 4 new entries to navgrid
-            rm_list.append(cell)                 # mark processed cell for removal from tasklist
-                
-        # remove cells processed this time around
-        for cell in rm_list:
-            self.removeCell(cell)
-                
-        # add new cells
-        for cell in add_list:
-            print 'adding new cell to tasklist; index=',cell.grid_index
-            self.addCell(cell)
-       
-        # step Panda3d's task manager every once in a while so that the display updates etc.
-        if (self.build_recursions % 10) == 0:
-            taskMgr.step();
+        cells_done = 0
+        while(len(self.task_list) > 0):
+            work_list = copy.deepcopy(self.task_list)              # make a copy of tasklist
+            for cell in work_list:
+                if (cell.processed == False):
+                    add_list = self.walker.walk(cell)   # may add up to 4 new entries to add_list
 
-        if(len(self.task_list) > 0):
-            self.build()
-            
+                    # add new cells found by the walker to the tasklist
+                    for cell in add_list:
+                        print 'adding new cell to tasklist; index=',cell.grid_index
+                        self.addCell(cell)
+
+                cells_done += 1
+                if (cells_done % 10) == 0:
+                    taskMgr.step()
+                
 
 # ------------------------------------------------------------------------------
 # main
 # ------------------------------------------------------------------------------
 
 print 'starting navgen v0.0.1'
+
 w = World()
 n = Navgen(w)
 n.build()
