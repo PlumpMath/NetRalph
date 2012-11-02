@@ -178,7 +178,6 @@ class Walker():
     def walk(self, cell):
         # print 'walking cell:', cell.grid_index
         
-        add_tasklist = []           # return new cells to add to tasklist
         x = cell.world_pos.getX()
         y = cell.world_pos.getY()
         
@@ -190,9 +189,9 @@ class Walker():
             # of just copying the old cell's Z
             pos = Point3(x, new_y, cell.world_pos.getZ())
             idx = self.navgen.worldPosToGridIndex(pos)
-            new_cell = Cell(pos, idx)       # create a new cell
-            add_tasklist.append(new_cell)   # add new cell to tasklist
-            cell.north = idx                # mark connectivity in existing cell
+            new_cell = Cell(pos, idx)           # create a new cell
+            cell.north = idx                    # mark connectivity in existing cell
+            self.navgen.addTaskCell(new_cell)   # add new cell to tasklist
 
         # step east
         new_x = x + self.navgen.cell_size
@@ -202,21 +201,19 @@ class Walker():
             # of just copying the old cell's Z
             pos = Point3(new_x, y, cell.world_pos.getZ())
             idx = self.navgen.worldPosToGridIndex(pos)
-            new_cell = Cell(pos, idx)       # create a new cell
-            add_tasklist.append(new_cell)   # add new cell to tasklist
-            cell.east = idx                 # mark connectivity in existing cell
+            new_cell = Cell(pos, idx)           # create a new cell
+            cell.east = idx                     # mark connectivity in existing cell
+            self.navgen.addTaskCell(new_cell)   # add new cell to tasklist
             
-        # print 'addlist len:', len(add_tasklist)
-        cell.processed = True
-        return add_tasklist
-        
+        self.navgen.removeTaskCell(cell)        # finally remove the current cell from the tasklist
+
             
 class Navgen():
     
     def __init__(self, w):
         self.build_recursions = 0
         self.world = w
-        self.task_list = []
+        self.task_list = {}     # a dictionary of cells to process: keyed by grid_index
         self.nav_grid = []
                 
         # determine grid 
@@ -233,7 +230,7 @@ class Navgen():
         i = self.worldPosToGridIndex(w.start_pos)
         print 'start cell: ', i
         c = Cell(w.start_pos, i)
-        self.addCell(c)
+        self.addTaskCell(c)
         
         # init the Walker
         self.walker = Walker(self)
@@ -246,27 +243,21 @@ class Navgen():
         return grid_index
         
     # add cell to the task_list ...
-    def addCell(self, cell):
-        self.task_list.append(cell)
+    def addTaskCell(self, cell):
+        self.task_list[cell.grid_index] = cell
         self.world.addDisplayCell(cell)
     
     # and remove it again    
-    def removeCell(self, cell):
-        self.task_list.remove(cell)
+    def removeTaskCell(self, cell):
+        del self.task_list[cell.grid_index]
                 
     # build the navmesh
     def build(self):
         cells_done = 0
         while(len(self.task_list) > 0):
             work_list = copy.deepcopy(self.task_list)              # make a copy of tasklist
-            for cell in work_list:
-                if (cell.processed == False):
-                    add_list = self.walker.walk(cell)   # may add up to 4 new entries to add_list
-
-                    # add new cells found by the walker to the tasklist
-                    for cell in add_list:
-                        print 'adding new cell to tasklist; index=',cell.grid_index
-                        self.addCell(cell)
+            for cell in work_list.values():
+                self.walker.walk(cell)   # may add up to 4 new entries
 
                 cells_done += 1
                 if (cells_done % 10) == 0:
